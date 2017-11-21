@@ -39,18 +39,6 @@ label {
 	text-transform: uppercase;
 }
 
-.masonry { /* Masonry container */
-	column-count: 10;
-	column-gap: 1em;
-}
-
-.masonry img { /* Masonry bricks or child elements */
-	/*background-color: #eee;*/
-	display: inline-block;
-	margin: 0 0 1em;
-	width: 100%;
-}
-
 .tags {
 	display: flex;
 	flex-wrap: wrap;
@@ -65,7 +53,7 @@ label {
 
 .info {float: left}
 
-#saveBtn, #logoutLink, #searchBtn { float: right}
+#previewBtn, #saveBtn, #logoutLink, #searchBtn { float: right}
 
 #userData {
 	display: inline-flex;

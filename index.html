@@ -28,7 +28,7 @@
 			<hr class="clear"/>
 			<div class="cpanel">
 				<form method="GET" class="controlform" id="controlform">
-					<input name="username" value="" placeholder="%username%" title="которому это по душе" required/>
+					<input name="username" value="" placeholder="%username%" title="которому это по душе" required="required" autocomplete="on"/>
 					<label>Posts <input name="where" value="posts" type="radio"></label>
 					<label>Favourites <input name="where" value="favourites" type="radio" checked="checked"></label>
 					<button type="button" id="searchBtn" name="search">Search</button>
@@ -36,6 +36,12 @@
 			</div>
 			<hr class="clear"/>
 			<div class="ipanel"></div>
+			<div class="progress hide clear" id="progress_bar">
+				<div class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%;">
+				</div>
+			</div>
+			<p class="hide" id="result"></p>
+			<div id="imgPane" class="masonry"></div>
 		</div>
 	</body>
 </html>
