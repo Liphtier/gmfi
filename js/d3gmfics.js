@@ -9,6 +9,7 @@ var api_path = {
 	posts: "/api/users/%s/posts/",
 	favourites: "/api/users/%s/favourites/posts/"
 };
+var corsProxyUrl = 'https://cors-anywhere.herokuapp.com/'
 
 var parallel_pages = 20;
 var img_loaded = 0;
@@ -246,10 +247,14 @@ function showResult(searchUrl) {
 			url = url.replace(/\??w=\d+/, '');
 			var filename = url.substring(url.lastIndexOf('/') + 1);
 			setTimeout(function () {
-				binaryXmlHttpRequest(url, "GET")
-					.then(function (data) {
-						zip.file(filename, data, {binary: true});
-					}).catch(function (err) {
+//				binaryXmlHttpRequest(url, "GET")
+				fetch(corsProxyUrl + url, {method: 'GET'})
+				.then(function(response) {
+					return response.blob();
+				})
+				.then(function (data) {
+					zip.file(filename, data, {binary: true});
+				}).catch(function (err) {
 					console.log(err)
 				}).then(function () {
 					count++;
@@ -266,7 +271,7 @@ function showResult(searchUrl) {
 							updatePercent(metadata.percent | 0);
 						}).then(function (content) {
 							saveAs(content, name);
-							showMessage("Download finished");
+//							showMessage("Download finished");
 						});
 					}
 				});
