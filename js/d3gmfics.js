@@ -112,7 +112,7 @@ function searchImages() {
 	}).done(function (pageData) {
 		if (pageData['item_count']) {
 			var cachedPage = JSON.parse(localStorage.getItem(searchUrl + '_page'));
-			if (! cachedPage || cachedPage['item_count'] != pageData['item_count'] || ! localStorage.getItem(searchUrl + '_links')) {
+			if (!cachedPage || cachedPage['item_count'] != pageData['item_count'] || !localStorage.getItem(searchUrl + '_links')) {
 				localStorage.setItem(searchUrl + '_page', JSON.stringify(pageData));
 				localStorage.removeItem(searchUrl + '_links');
 				item_count = pageData['item_count'];
@@ -120,7 +120,7 @@ function searchImages() {
 				posts = extract_fields(pageData['posts'], fields);
 
 				if (item_count > 42) {
-					$(document).one("ma-started", function() {
+					$(document).one("ma-started", function () {
 						pages_returned = 1;
 						$(document).off("ma-page").on("ma-page", function (e, result) {
 							var post_index = (parseInt(result['index']) + 1) * 42;
@@ -140,7 +140,7 @@ function searchImages() {
 							showMessage(msg);
 							updatePercent(Math.round(percent));
 						});
-						$(document).one("ma-finished", function() {
+						$(document).one("ma-finished", function () {
 							$(document).trigger("posts-ready");
 						});
 					});
@@ -156,15 +156,14 @@ function searchImages() {
 				}
 			}
 			else {
-//				console.log("Serving links from cache");
 				$(document).trigger("posts-ready");
 			}
 		}
 	}).fail(function (x, s, m) {
-				showError("Couldn't get posts." + s  + " : " + m);
+		showError("Couldn't get posts." + s + " : " + m);
 	});
 
-	$(document).one('posts-ready', function() {
+	$(document).one('posts-ready', function () {
 		updatePercent(100);
 		showMessage("Finished getting pages");
 		if (localStorage.getItem(searchUrl + '_links')) {
@@ -185,7 +184,7 @@ function showResult(searchUrl) {
 	var where = $('input[name="where"]:checked', $controlForm).val();
 	var cachedData = JSON.parse(localStorage.getItem(searchUrl + '_page'));
 	var links = JSON.parse(localStorage.getItem(searchUrl + '_links'));
-	if(! cachedData || ! links) {
+	if (!cachedData || !links) {
 		showError("Couldn't get result from cache");
 		return;
 	}
@@ -205,39 +204,32 @@ function showResult(searchUrl) {
 		$(Object.keys(links)).each(function (index, link) {
 			var src = link.replace(/w=\d+/, 'w=120');
 
-//			setTimeout(function() {
+			newImg = $('<img class="item" alt="' + src + '" />');
 
-				newImg = $('<img class="item" alt="' + src + '" />');
+			newImg.one("error", function () {
+				img_error++;
+				console.log("Failed loading image:");
+				console.log(arguments);
+				setTimeout(function () {
+					$(this).src += '?' + new Date;
+				}, 500);
+			});
+			newImg.one("load", function () {
+				img_loaded++;
+				percent = img_loaded / img_count * 100;
+				var msg = "Getting Images : " + img_loaded + "(" + Math.round(percent) + " %)";
+				showMessage(msg);
+				updatePercent(Math.round(percent));
+				if (img_loaded == img_count) {
+					showMessage("Finished getting images");
+				}
+			}).each(function () {
+				if (this.complete) $(this).load();
+			});
 
-				newImg.one("error", function () {
-					img_error++;
-					console.log("Failed loading image:");
-					console.log(arguments);
-					setTimeout(function () {
-						$(this).src += '?' + new Date;
-					}, 500);
-				});
-				newImg.one("load", function () {
-					img_loaded++;
-					percent = img_loaded / img_count * 100;
-					var msg = "Getting Images : " + img_loaded + "(" + Math.round(percent) + " %)";
-					showMessage(msg);
-					updatePercent(Math.round(percent));
-					if (img_loaded == img_count) {
-						showMessage("Finished getting images");
-					}
-				}).each(function () {
-					if (this.complete) $(this).load();
-				});
+			newImg.attr('src', src);
 
-				newImg.attr('src',  src);
-
-				$('#imgPane').append(newImg);
-
-//			}, 100);
-
-
-
+			$('#imgPane').append(newImg);
 		});
 	});
 
@@ -255,9 +247,9 @@ function showResult(searchUrl) {
 			var filename = url.substring(url.lastIndexOf('/') + 1);
 			setTimeout(function () {
 				binaryXmlHttpRequest(url, "GET")
-				.then(function (data) {
-					zip.file(filename, data, {binary: true});
-				}).catch(function (err) {
+					.then(function (data) {
+						zip.file(filename, data, {binary: true});
+					}).catch(function (err) {
 					console.log(err)
 				}).then(function () {
 					count++;
@@ -274,7 +266,7 @@ function showResult(searchUrl) {
 							updatePercent(metadata.percent | 0);
 						}).then(function (content) {
 							saveAs(content, name);
-							//			    showMessage("Download finished");
+							showMessage("Download finished");
 						});
 					}
 				});
@@ -283,206 +275,145 @@ function showResult(searchUrl) {
 	});
 }
 
-	function extract_fields(posts, fields) {
-		pruned = [];
-		for (p in posts) {
-			var post = {};
-			for (f in fields) {
-				if (posts[p][fields[f]]) {
-					post[fields[f]] = posts[p][fields[f]];
-				}
-			}
-			pruned.push(post);
-		}
-		return pruned;
-	}
-
-	function getLinks(links, posts) {
-		for (p in posts) {
-			if (posts[p]['main_image_url']) {
-				links[posts[p]['main_image_url']] = {tags: posts[p]['tags']};
+function extract_fields(posts, fields) {
+	pruned = [];
+	for (p in posts) {
+		var post = {};
+		for (f in fields) {
+			if (posts[p][fields[f]]) {
+				post[fields[f]] = posts[p][fields[f]];
 			}
 		}
-		return links;
+		pruned.push(post);
 	}
+	return pruned;
+}
 
-	function setCookie(key, value, expires) {
-		var defValidity = 1000 * 3600 * 24 * 7;
-		var newDate = new Date();
-		if (expires && Number.isInteger(expires)) {
-			newDate.setTime(newDate.getTime() + expires);
+function getLinks(links, posts) {
+	for (p in posts) {
+		if (posts[p]['main_image_url']) {
+			links[posts[p]['main_image_url']] = {tags: posts[p]['tags']};
 		}
-		else if (expires && expires instanceof Date) {
-			newDate = expires;
-		}
-		else {
-			newDate.setTime(newDate.getTime() + defValidity);
-		}
-		if (newDate instanceof Date) {
-			document.cookie = key + '=' + value + ';expires=' + newDate.toUTCString();
-			return;
-		}
-		console.err("setCookie failed - expiration value is invalid: " + newDate);
 	}
+	return links;
+}
 
-	function getCookie(key) {
-		var keyValue = document.cookie.match('(^|;) ?' + key + '=([^;]*)(;|$)');
-		return keyValue ? keyValue[2] : null;
-	}
+function multiAjax(urls, method, headers, data) {
+	queue = [];
+	$(document).trigger("ma-started");
+	$.each(urls, function (u, url) {
+		queue.push(
+			$.ajax({
+				url: url,
+				method: method,
+				headers: headers,
+				cache: true,
+				//				ifModified: true,
+				data: data
+			}).done(function (response) {
+				$(document).trigger("ma-page", {index: u, response: response});
+			}).fail(function (x, s, m) {
+				console.log('ma-page fail: ' + s + ' : ' + m + ' : ' + x.statusText);
+				$(document).trigger("ma-page", {index: u, error: s || x.statusText});
+			})
+		);
+	});
+	$.when.apply($, queue).then(function () {
+		$(document).trigger("ma-finished");
+	});
+}
 
-	/**
-	 * Reset the message.
-	 */
-	function resetMessage() {
-		$("#result")
-			.removeClass()
-			.text("");
-	}
-
-	/**
-	 * show a successful message.
-	 * @param {String} text the text to show.
-	 */
-	function showMessage(text) {
-		resetMessage();
-		$("#result")
-			.addClass("alert alert-success")
-			.text(text);
-	}
-
-	/**
-	 * show an error message.
-	 * @param {String} text the text to show.
-	 */
-	function showError(text) {
-		resetMessage();
-		$("#result")
-			.addClass("alert alert-danger")
-			.text(text);
-	}
-
-	/**
-	 * Update the progress bar.
-	 * @param {Integer} percent the current percent
-	 */
-	function updatePercent(percent) {
-		$("#progress_bar").removeClass("hide")
-			.find(".progress-bar")
-			.attr("aria-valuenow", percent)
-			.css({
-				width: percent + "%"
-			});
-	}
-
-	function multiAjax(urls, method, headers, data) {
-		queue = [];
-		$(document).trigger("ma-started");
-		$.each(urls, function (u, url) {
-			queue.push(
-				$.ajax({
-					url: url,
-					method: method,
-					headers: headers,
-					cache: true,
-	//				ifModified: true,
-					data: data
-				}).done(function (response) {
-					$(document).trigger("ma-page", {index: u, response: response});
-				}).fail(function (x, s, m) {
-					console.log('ma-page fail: ' + s + ' : ' + m + ' : ' + x.statusText);
-					$(document).trigger("ma-page", {index: u, error: s || x.statusText});
-				})
-			);
-		});
-		$.when.apply($, queue).then(function() {
-			$(document).trigger("ma-finished");
-		});
-	}
-
-	function binaryXmlHttpRequest(url, method, headers, data) {
-		return new Promise(function (resolve, reject) {
-			var xhr = new XMLHttpRequest();
-			xhr.open(method, url);
-			// xhr.timeout = 500;
-			xhr.responseType = "blob";
-			xhr.onload = function () {
-				if (this.status >= 200 && this.status < 300) {
-					resolve(xhr.response);
-				} else {
-					reject({
-						status: this.status,
-						statusText: xhr.statusText
-					});
-				}
-			};
-			xhr.onerror = function () {
+function binaryXmlHttpRequest(url, method, headers, data) {
+	return new Promise(function (resolve, reject) {
+		var xhr = new XMLHttpRequest();
+		xhr.open(method, url);
+		// xhr.timeout = 500;
+		xhr.responseType = "blob";
+		xhr.onload = function () {
+			if (this.status >= 200 && this.status < 300) {
+				resolve(xhr.response);
+			}
+			else {
 				reject({
 					status: this.status,
 					statusText: xhr.statusText
 				});
-			};
-			xhr.send();
-		});
-	}
-/**
- *
- * jquery.binarytransport.js
- *
- * @description. jQuery ajax transport for making binary data type requests.
- * @version 1.0
- * @author Henry Algus <henryalgus@gmail.com>
- *
- */
-
-	// use this transport for "binary" data type
-	$.ajaxTransport("+binary", function(options, originalOptions, jqXHR){
-		// check for conditions and support for blob / arraybuffer response type
-		if (window.FormData && ((options.dataType && (options.dataType == 'binary')) || (options.data && ((window.ArrayBuffer && options.data instanceof ArrayBuffer) || (window.Blob && options.data instanceof Blob)))))
-		{
-			return {
-				// create new XMLHttpRequest
-				send: function(headers, callback){
-					// setup all variables
-					var xhr = new XMLHttpRequest(),
-						url = options.url,
-						type = options.type,
-						async = options.async || true,
-					// blob or arraybuffer. Default is blob
-						dataType = options.responseType || "blob",
-						data = options.data || null,
-						username = options.username || null,
-						password = options.password || null;
-
-					xhr.addEventListener('load', function(){
-						var data = {};
-						data[options.dataType] = xhr.response;
-						// make callback and send data
-						callback(xhr.status, xhr.statusText, data, xhr.getAllResponseHeaders());
-					});
-
-					xhr.open(type, url, async, username, password);
-
-					// setup custom headers
-					for (var i in headers ) {
-						xhr.setRequestHeader(i, headers[i] );
-					}
-
-					xhr.responseType = dataType;
-					try {
-						xhr.send(data);
-					}
-					catch (e) {
-						console.log("XHR send failed: " + e);
-					}
-				},
-				abort: function(){
-					try {
-						jqXHR.abort();
-					}
-					catch (e) {
-						console.error(e);
-					}
-				}
-			};
-		}
+			}
+		};
+		xhr.onerror = function () {
+			reject({
+				status: this.status,
+				statusText: xhr.statusText
+			});
+		};
+		xhr.send();
 	});
+}
+
+function setCookie(key, value, expires) {
+	var defValidity = 1000 * 3600 * 24 * 7;
+	var newDate = new Date();
+	if (expires && Number.isInteger(expires)) {
+		newDate.setTime(newDate.getTime() + expires);
+	}
+	else if (expires && expires instanceof Date) {
+		newDate = expires;
+	}
+	else {
+		newDate.setTime(newDate.getTime() + defValidity);
+	}
+	if (newDate instanceof Date) {
+		document.cookie = key + '=' + value + ';expires=' + newDate.toUTCString();
+		return;
+	}
+	console.err("setCookie failed - expiration value is invalid: " + newDate);
+}
+
+function getCookie(key) {
+	var keyValue = document.cookie.match('(^|;) ?' + key + '=([^;]*)(;|$)');
+	return keyValue ? keyValue[2] : null;
+}
+
+/**
+ * Reset the message.
+ */
+function resetMessage() {
+	$("#result")
+		.removeClass()
+		.text("");
+}
+
+/**
+ * show a successful message.
+ * @param {String} text the text to show.
+ */
+function showMessage(text) {
+	resetMessage();
+	$("#result")
+		.addClass("alert alert-success")
+		.text(text);
+}
+
+/**
+ * show an error message.
+ * @param {String} text the text to show.
+ */
+function showError(text) {
+	resetMessage();
+	$("#result")
+		.addClass("alert alert-danger")
+		.text(text);
+}
+
+/**
+ * Update the progress bar.
+ * @param {Integer} percent the current percent
+ */
+function updatePercent(percent) {
+	$("#progress_bar").removeClass("hide")
+		.find(".progress-bar")
+		.attr("aria-valuenow", percent)
+		.css({
+			width: percent + "%"
+		});
+}
