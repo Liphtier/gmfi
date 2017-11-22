@@ -1,7 +1,7 @@
 * { margin: 0; padding: 0}
 html, body { width: 100%; height: 100% }
 body { padding:20px; position: relative}
-/*hr { margin: 0.5em 0 }*/
+
 dl { margin: 0; }
 label {
 	margin: 0 5px;
@@ -74,17 +74,12 @@ label {
 	color: lightblue;
 }
 
-.cpanel {
-	/*width: 100%;*/
-}
-
-.masonry { /* Masonry container */
+.masonry {
 	column-count: 10;
 	column-gap: 1em;
 }
 
-.masonry img { /* Masonry bricks or child elements */
-	/*background-color: #eee;*/
+.masonry img {
 	display: inline-block;
 	margin: 0 0 1em;
 	width: 100%;

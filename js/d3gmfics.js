@@ -105,12 +105,18 @@ function searchImages() {
 	var links = {};
 	var fields = ['main_image_url', 'tags'];
 
-	$.ajax({
-		url: searchUrl,
+	fetch(searchUrl, {
 		method: 'GET',
-		cache: true,
+		cache: 'default',
 		headers: {'X-Futuware-UID': uid, 'X-Futuware-SID': sid}
-	}).done(function (pageData) {
+	}).then(function (response) {
+		if(response.ok) {
+			return response.json();
+		}
+		else {
+			return Promise.reject(response);
+		}
+	}).then(function (pageData) {
 		if (pageData['item_count']) {
 			var cachedPage = JSON.parse(localStorage.getItem(searchUrl + '_page'));
 			if (!cachedPage || cachedPage['item_count'] != pageData['item_count'] || !localStorage.getItem(searchUrl + '_links')) {
@@ -121,36 +127,44 @@ function searchImages() {
 				posts = extract_fields(pageData['posts'], fields);
 
 				if (item_count > 42) {
-					$(document).one("ma-started", function () {
-						pages_returned = 1;
-						$(document).off("ma-page").on("ma-page", function (e, result) {
-							var post_index = (parseInt(result['index']) + 1) * 42;
-							if (result['response']) {
-								var page_posts = extract_fields(result['response']['posts'], fields);
-								for (var pp in page_posts) {
-									posts[post_index] = page_posts[pp];
-									post_index++;
-								}
-							}
-							else if (result['error']) {
-								console.log(result);
-							}
-							pages_returned++;
-							var percent = pages_returned / page_count * 100;
-							var msg = "Getting pages : " + percent.toFixed(2) + " %";
-							showMessage(msg);
-							updatePercent(Math.round(percent));
-						});
-						$(document).one("ma-finished", function () {
-							$(document).trigger("posts-ready");
-						});
-					});
-
-					var pages = [];
+					pages_returned = 1;
 					for (page_num = 2; page_num <= page_count; page_num++) {
-						pages.push(searchUrl + "?page=" + page_num);
+						page = searchUrl + "?page=" + page_num;
+						(function (_page_num) {
+							fetch(page, {method: "GET", headers: {'X-Futuware-UID': uid, 'X-Futuware-SID': sid}})
+								.then(function (response) {
+									if(response.ok) {
+										return response.json();
+									}
+									else {
+										return Promise.reject(response);
+									}
+								})
+								.then(function (result) {
+									var post_index = (_page_num - 1) * 42;
+									console.log('post_index:' + post_index);
+									var page_posts = extract_fields(result['posts'], fields);
+									for (var pp in page_posts) {
+										posts[post_index] = page_posts[pp];
+										post_index++;
+									}
+								})
+								.catch(function (error) {
+									console.log(error);
+								})
+								.then(function () {
+									pages_returned++;
+									var percent = pages_returned / page_count * 100;
+									var msg = "Getting pages : " + percent.toFixed(2) + " %";
+									showMessage(msg);
+									updatePercent(Math.round(percent));
+
+									if (pages_returned == page_count) {
+										$(document).trigger("posts-ready");
+									}
+								});
+						})(page_num);
 					}
-					multiAjax(pages, 'GET', {'X-Futuware-UID': uid, 'X-Futuware-SID': sid}, null);
 				}
 				else {
 					$(document).trigger("posts-ready");
@@ -160,8 +174,9 @@ function searchImages() {
 				$(document).trigger("posts-ready");
 			}
 		}
-	}).fail(function (x, s, m) {
-		showError("Couldn't get posts." + s + " : " + m);
+	}).catch(function (error) {
+		console.log(error);
+		showError("Couldn't get posts: " + error.statusText);
 	});
 
 	$(document).one('posts-ready', function () {
@@ -193,7 +208,7 @@ function showResult(searchUrl) {
 	infohtml += '<button id="previewBtn">Preview</button></p>';
 	infohtml += '<button id="saveBtn">Save</button></p>';
 	$('.ipanel').html(infohtml);
-//
+
 	$('#previewBtn').on("click", function () {
 		$('#imgPane').html('');
 		gap = parseInt($('#imgPane').css('column-gap'));
@@ -239,43 +254,118 @@ function showResult(searchUrl) {
 		updatePercent(0);
 		showMessage("Started download of original images");
 		var zip = new JSZip();
-		var count = 0;
+		var count = {s:  0, e: 0, t: 0};
 		var name = username + "_" + where + "_allImages.zip";
 		var urls = $(Object.keys(links));
+		var startTime = null;
+		var bytes = 0;
+
+//		var psize = 5;
+//
+//		var pool = urls.splice(0, psize);
+
+//		var processData = function(requests) {
+//			Promise.all(
+//				requests.map(function (url) {
+//					fetch(url, {
+//						method: "GET"
+//					})
+//					.then(function (response) {
+//						if(response.ok) {
+//							return response.blob();
+//						}
+//						else {
+//							return Promise.reject(response);
+//						}
+//					})
+//				})
+//			)
+//			.then(function (responses) {
+//				responses.every(function (result) {
+//					return result;
+//				});
+//			})
+//			.then(function (result) {
+//				if (result) {
+//					if (urls.length) {
+//						pool = urls.splice(0, psize);
+//						return true;
+//					}
+//				}
+//				return "complete"
+//			});
+//		};
+//
+//		var fn = function(next) {
+//			return next === true ? processData(pool).then(fn) : next;
+//		}
+//
+//		processData(pool)
+//		.then(fn)
+//		.then(function(complete) {
+//			console.log(complete)
+//		})
+//		.catch(function(err) {
+//			console.log(err)
+//		});
+
+
+
 
 		urls.each(function (index, url) {
 			url = url.replace(/\??w=\d+/, '');
 			var filename = url.substring(url.lastIndexOf('/') + 1);
-			setTimeout(function () {
-//				binaryXmlHttpRequest(url, "GET")
-				fetch(corsProxyUrl + url, {method: 'GET'})
-				.then(function(response) {
+
+
+			fetch(corsProxyUrl + url, {method: 'GET'})
+			.then(function(response) {
+				if(response.ok) {
 					return response.blob();
-				})
-				.then(function (data) {
-					zip.file(filename, data, {binary: true});
-				}).catch(function (err) {
-					console.log(err)
-				}).then(function () {
-					count++;
-					percent = Math.round(count / urls.length * 100);
-					showMessage("Downloading file: " + count + "(" + percent + " %)");
-					updatePercent(percent);
-					if (count == urls.length) {
-						zip.generateAsync({type: 'blob'}, function updateCallback(metadata) {
-							var msg = count + "(" + metadata.percent.toFixed(2) + " %)";
-							if (metadata.currentFile) {
-								msg += ", current file = " + metadata.currentFile;
-							}
-							showMessage(msg);
-							updatePercent(metadata.percent | 0);
-						}).then(function (content) {
-							saveAs(content, name);
+				}
+				else {
+					return Promise.reject(response);
+				}
+			})
+			.then(function (data) {
+				if(! startTime)
+					startTime = (new Date()).getTime();
+				bytes += data.size;
+				count['s']++;
+				if(zip.file(filename)) {
+					filename  = index + "_" + filename;
+				}
+				zip.file(filename, data, {binary: true});
+			}).catch(function (err) {
+				count['e']++;
+				console.log(err)
+			}).then(function () {
+				count['t']++;
+				percent = Math.round(count['t'] / urls.length * 100);
+					currentTime = (new Date()).getTime() - startTime;
+					speed = (bytes / (currentTime / 1000) / 1024).toFixed(2);
+				showMessage(
+					"Downloading file: " + count['t']
+					+	" [ " + count['s'] + " OK, " + count['e'] + " failed ] "
+					+ percent + " %  at " + speed + " kB/s"
+				);
+				updatePercent(percent);
+
+
+
+				if (count['t'] == urls.length) {
+					zip.generateAsync({type: 'blob'}, function updateCallback(metadata) {
+						var msg =  "Compressing " + count['s'] + " files (" + metadata.percent.toFixed(2) + " %)";
+						if (metadata.currentFile) {
+							msg += ", current file = " + metadata.currentFile;
+						}
+						showMessage(msg);
+						updatePercent(metadata.percent | 0);
+					}).then(function (content) {
+						saveAs(content, name);
 //							showMessage("Download finished");
-						});
-					}
-				});
-			}, 100);
+					});
+				}
+			});
 		});
 	});
 }
@@ -301,58 +391,6 @@ function getLinks(links, posts) {
 		}
 	}
 	return links;
-}
-
-function multiAjax(urls, method, headers, data) {
-	queue = [];
-	$(document).trigger("ma-started");
-	$.each(urls, function (u, url) {
-		queue.push(
-			$.ajax({
-				url: url,
-				method: method,
-				headers: headers,
-				cache: true,
-				//				ifModified: true,
-				data: data
-			}).done(function (response) {
-				$(document).trigger("ma-page", {index: u, response: response});
-			}).fail(function (x, s, m) {
-				console.log('ma-page fail: ' + s + ' : ' + m + ' : ' + x.statusText);
-				$(document).trigger("ma-page", {index: u, error: s || x.statusText});
-			})
-		);
-	});
-	$.when.apply($, queue).then(function () {
-		$(document).trigger("ma-finished");
-	});
-}
-
-function binaryXmlHttpRequest(url, method, headers, data) {
-	return new Promise(function (resolve, reject) {
-		var xhr = new XMLHttpRequest();
-		xhr.open(method, url);
-		// xhr.timeout = 500;
-		xhr.responseType = "blob";
-		xhr.onload = function () {
-			if (this.status >= 200 && this.status < 300) {
-				resolve(xhr.response);
-			}
-			else {
-				reject({
-					status: this.status,
-					statusText: xhr.statusText
-				});
-			}
-		};
-		xhr.onerror = function () {
-			reject({
-				status: this.status,
-				statusText: xhr.statusText
-			});
-		};
-		xhr.send();
-	});
 }
 
 function setCookie(key, value, expires) {
@@ -392,11 +430,12 @@ function resetMessage() {
  * show a successful message.
  * @param {String} text the text to show.
  */
-function showMessage(text) {
-	resetMessage();
+function showMessage(text, mode) {
+	if(mode != "a")
+		resetMessage();
 	$("#result")
 		.addClass("alert alert-success")
-		.text(text);
+		.append(text);
 }
 
 /**
