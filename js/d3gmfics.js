@@ -15,8 +15,11 @@ var parallel_pages = 20;
 var img_loaded = 0;
 var img_error = 0;
 var img_count = 0;
-
+var abortAll = false;
 var loginForm;
+
+// var abc = new AbortController();
+// var abs = controller.signal;
 
 $(function () {
 
@@ -34,6 +37,7 @@ $(function () {
 		showContent();
 	}
 
+
 	$(document).on('loginSuccess', function () {
 		loginForm.get(0).reset();
 		showContent();
@@ -44,6 +48,9 @@ $(function () {
 	});
 	$(document).on("click", '#logoutLink', logOut);
 	$(document).on("click", '#searchBtn', searchImages);
+	$(document).on("click", '#abortBtn', function () {
+		abortAll = true;
+	});
 
 });
 
@@ -61,6 +68,7 @@ function showContent() {
 }
 
 function logIn(loginForm) {
+	abortAll = false;
 	$.post(d3host + api_path.login, loginForm.serialize())
 		.done(function (data) {
 			if (data['uid'] && data['sid']) {
@@ -91,6 +99,7 @@ function logOut() {
 }
 
 function searchImages() {
+	abortAll = false;
 	$('.ipanel').html('');
 	$('#imgPane').html('');
 	updatePercent(0);
@@ -251,6 +260,7 @@ function showResult(searchUrl) {
 
 
 	$('#saveBtn').on("click", function () {
+		abortAll = false;
 		updatePercent(0);
 		showMessage("Started download of original images");
 		var zip = new JSZip();
@@ -259,6 +269,8 @@ function showResult(searchUrl) {
 		var urls = $(Object.keys(links));
 		var startTime = null;
 		var bytes = 0;
+		var total = urls.length;
+		var filenames = {};
 
 //		var psize = 5;
 //
@@ -310,16 +322,19 @@ function showResult(searchUrl) {
 //		});
 
 
-
-
-		urls.each(function (index, url) {
+		var fetchUrl = function(index, url) {
+			// Promise.map awaits for returned promises as well.
+			if(abortAll)
+				return;
+			// console.log(index + " : " + url);
 			url = url.replace(/\??w=\d+/, '');
 			var filename = url.substring(url.lastIndexOf('/') + 1);
 
 
-			fetch(corsProxyUrl + url, {method: 'GET'})
-			.then(function(response) {
-				if(response.ok) {
+
+			fetch(/*corsProxyUrl + */url, {method: 'GET', cache: 'force-cache'})
+			.then(function (response) {
+				if (response.ok) {
 					return response.blob();
 				}
 				else {
@@ -327,34 +342,40 @@ function showResult(searchUrl) {
 				}
 			})
 			.then(function (data) {
-				if(! startTime)
+				if (!startTime)
 					startTime = (new Date()).getTime();
 				bytes += data.size;
 				count['s']++;
-				if(zip.file(filename)) {
-					filename  = index + "_" + filename;
+				if (filenames[filename]) {
+					console.log(filename + ' => ' + count['t'] + "_" + filename);
+					filename = count['t'] + "_" + filename;
 				}
+				filenames[filename] = 1;
 				zip.file(filename, data, {binary: true});
 			}).catch(function (err) {
 				count['e']++;
 				console.log(err)
 			}).then(function () {
+
+				if(urls.length > 0 && ! abortAll ) {
+					next = urls.splice(0,1);
+					// if(next) {
+					fetchUrl(0, next[0]);
+				}
 				count['t']++;
-				percent = Math.round(count['t'] / urls.length * 100);
-					currentTime = (new Date()).getTime() - startTime;
-					speed = (bytes / (currentTime / 1000) / 1024).toFixed(2);
+				// delete pool[url];
+				percent = Math.round(count['t'] / total * 100);
+				currentTime = (new Date()).getTime() - startTime;
+				speed = (bytes / (currentTime / 1000) / 1024).toFixed(2);
 				showMessage(
 					"Downloading file: " + count['t']
-					+	" [ " + count['s'] + " OK, " + count['e'] + " failed ] "
+					+ " [ " + count['s'] + " OK, " + count['e'] + " failed ] "
 					+ percent + " %  at " + speed + " kB/s"
 				);
 				updatePercent(percent);
-
-
-
-				if (count['t'] == urls.length) {
+				if (count['t'] == total) {
 					zip.generateAsync({type: 'blob'}, function updateCallback(metadata) {
-						var msg =  "Compressing " + count['s'] + " files (" + metadata.percent.toFixed(2) + " %)";
+						var msg = "Compressing " + count['s'] + " files (" + metadata.percent.toFixed(2) + " %)";
 						if (metadata.currentFile) {
 							msg += ", current file = " + metadata.currentFile;
 						}
@@ -362,11 +383,21 @@ function showResult(searchUrl) {
 						updatePercent(metadata.percent | 0);
 					}).then(function (content) {
 						saveAs(content, name);
-//							showMessage("Download finished");
+						//							showMessage("Download finished");
 					});
 				}
 			});
-		});
+
+		};
+
+		var psize = 30;
+
+		var pool = urls.splice(0, psize);
+
+		$(pool).each(fetchUrl);
+
+
+
 	});
 }
 
@@ -461,3 +492,4 @@ function updatePercent(percent) {
 			width: percent + "%"
 		});
 }
+
