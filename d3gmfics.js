@@ -9,15 +9,19 @@ var api_path = {
 	posts: "/api/users/%s/posts/",
 	favourites: "/api/users/%s/favourites/posts/"
 };
-var corsProxyUrl = 'https://cors-anywhere.herokuapp.com/'
+
 
 var abortAll = false;
-var loginForm;
+
+var $loginForm;
+var $controlForm;
+var $infoPanel;
+var $imgPanel;
 
 $(function () {
 
-	loginForm = $('#loginform');
-	loginForm.on('submit', function (e) {
+	$loginForm = $('#loginform');
+	$loginForm.on('submit', function (e) {
 		e.preventDefault();
 		logIn($(this));
 		return false;
@@ -32,9 +36,12 @@ $(function () {
 
 
 	$(document).on('loginSuccess', function () {
-		loginForm.get(0).reset();
+		$loginForm.get(0).reset();
 		showContent();
 
+	});
+	$(document).on('loginError', function (e, a) {
+		alert(a);
 	});
 	$(document).on('logOut', function () {
 		showLogin();
@@ -50,13 +57,22 @@ $(function () {
 
 function showLogin() {
 	$('.content_wrapper').hide();
-	$('.login_wrapper').show()
+	$('.login_wrapper').show();
+	$controlForm = $infoPanel = $imgPanel = null;
 }
 
 function showContent() {
 	$('.login_wrapper').hide();
-	$('#upanel').html("<dl id='userData'><dt>Logged in as: </dt><dd>" + login + "</dd>,<dt>ID:</dt><dd>" + uid + '</dd></dl><span id="logoutLink">Logout</span>');
-	$('#controlform input[name="username"]').val(login);
+	$('#upanel').html("<dl id='userData'><dt>Logged in as: </dt>" +
+		"<dd>" + login + "</dd>,<dt>ID:</dt><dd>" +
+		uid + '</dd></dl>' +
+		'<span id="logoutLink">Logout</span>' /*+
+		'<span class="helpBtn glyphicon glyphicon-question-sign"></span>'*/
+		);
+	$controlForm = $('#controlform');
+	$infoPanel = $('.ipanel').html('');
+	$imgPanel = $('#imgPane').html('');
+	$('input[name="username"]', $controlForm).val(login);
 	$('.content_wrapper').show();
 }
 
@@ -75,8 +91,8 @@ function logIn(loginForm) {
 				return true;
 			}
 		})
-		.fail(function (e, x, s, m) {
-			$(document).trigger("loginError", x.statusCode + " " + x.statusText);
+		.fail(function (x, s, m) {
+			$(document).trigger("loginError", [s + ": " + m]);
 		});
 }
 
@@ -93,17 +109,16 @@ function logOut() {
 
 function searchImages() {
 	abortAll = false;
-	$('.ipanel').html('');
-	$('#imgPane').html('');
+	$infoPanel.html('');
+	$imgPanel.html('');
 	updatePercent(0);
 	showMessage("Starting...");
 
-	var $controlForm = $('#controlform');
 	var username = $('input[name="username"]', $controlForm).val();
 	var where = $('input[name="where"]:checked', $controlForm).val();
 	var searchUrl = d3host + api_path[where].replace('%s', username);
 
-	var posts = tags = []; //Or {}
+	var posts, tags = [];
 	var links = {};
 	var fields = ['main_image_url', 'tags'];
 
@@ -124,14 +139,14 @@ function searchImages() {
 			if (!cachedPage || cachedPage['item_count'] != pageData['item_count'] || !localStorage.getItem(searchUrl + '_links')) {
 				localStorage.setItem(searchUrl + '_page', JSON.stringify(pageData));
 				localStorage.removeItem(searchUrl + '_links');
-				item_count = pageData['item_count'];
-				page_count = pageData['page_count'];
+				var item_count = pageData['item_count'];
+				var page_count = pageData['page_count'];
 				posts = extract_fields(pageData['posts'], fields);
 
 				if (item_count > 42) {
-					pages_returned = 1;
-					for (page_num = 2; page_num <= page_count; page_num++) {
-						page = searchUrl + "?page=" + page_num;
+					var pages_returned = 1;
+					for (var page_num = 2; page_num <= page_count; page_num++) {
+						var page = searchUrl + "?page=" + page_num;
 						(function (_page_num) {
 							fetch(page, {method: "GET", headers: {'X-Futuware-UID': uid, 'X-Futuware-SID': sid}})
 								.then(function (response) {
@@ -144,7 +159,6 @@ function searchImages() {
 								})
 								.then(function (result) {
 									var post_index = (_page_num - 1) * 42;
-									console.log('post_index:' + post_index);
 									var page_posts = extract_fields(result['posts'], fields);
 									for (var pp in page_posts) {
 										posts[post_index] = page_posts[pp];
@@ -156,10 +170,10 @@ function searchImages() {
 								})
 								.then(function () {
 									pages_returned++;
-									var percent = pages_returned / page_count * 100;
-									var msg = "Getting pages : " + percent.toFixed(2) + " %";
+									var percent = Math.round(pages_returned / page_count * 100);
+									var msg = "Getting pages : " + percent + " %";
 									showMessage(msg);
-									updatePercent(Math.round(percent));
+									updatePercent(percent);
 
 									if (pages_returned == page_count) {
 										$(document).trigger("posts-ready");
@@ -176,9 +190,12 @@ function searchImages() {
 				$(document).trigger("posts-ready");
 			}
 		}
+		else {
+			showError("The user has no posts");
+		}
 	}).catch(function (error) {
 		console.log(error);
-		showError("Couldn't get posts: " + error.statusText);
+		showError("Couldn't get " + where + ": " + error.statusText);
 	});
 
 	$(document).one('posts-ready', function () {
@@ -206,27 +223,30 @@ function showResult(searchUrl) {
 		showError("Couldn't get result from cache");
 		return;
 	}
-	infohtml = '<p class="info">' + where + ': ' + cachedData['item_count'] + '; images found: ' + Object.keys(links).length + '</p>'
+	var infohtml = '<p class="info">' + where + ': ' + cachedData['item_count'] + '; images found: ' + Object.keys(links).length + '</p>';
 	infohtml += '<button id="previewBtn">Preview</button></p>';
 	infohtml += '<button id="saveBtn">Save</button></p>';
-	$('.ipanel').html(infohtml);
+	$infoPanel.html(infohtml);
 
 	$('#previewBtn').on("click", function () {
-		$('#imgPane').html('');
-		gap = parseInt($('#imgPane').css('column-gap'));
-		cc = Math.ceil(($('#imgPane').width() + gap) / (120 + gap) - 1);
-		$('#imgPane.masonry').css({columnCount: cc})
+		$imgPanel.html('');
+		$('#debug').hide();
+		var gap = parseInt($imgPanel.css('column-gap'));
+		var cc = Math.ceil(($imgPanel.width() + gap) / (120 + gap) - 1);
+		$imgPanel.css({columnCount: cc});
 		updatePercent(0);
 
 
+		var urls = $(Object.keys(links));
+//		var pool = urls.splice(0,30);
+		var img_count = urls.length;
 		var img_loaded = 0;
 		var img_error = 0;
-		var img_count = Object.keys(links).length;
 
-		$(Object.keys(links)).each(function (index, link) {
+		urls.each(function (index, link) {
 			var src = link.replace(/w=\d+/, 'w=120');
 
-			newImg = $('<img class="item" alt="' + src + '" />');
+			var newImg = $('<img class="item" alt="' + src + '" />');
 
 			newImg.one("error", function () {
 				img_error++;
@@ -238,10 +258,10 @@ function showResult(searchUrl) {
 			});
 			newImg.one("load", function () {
 				img_loaded++;
-				percent = img_loaded / img_count * 100;
-				var msg = "Getting Images : " + img_loaded + "(" + Math.round(percent) + " %)";
+				var percent = Math.round(img_loaded / img_count * 100);
+				var msg = "Getting Images : " + img_loaded + "(" + percent + " %)";
 				showMessage(msg);
-				updatePercent(Math.round(percent));
+				updatePercent(percent);
 				if (img_loaded == img_count) {
 					showMessage("Finished getting images");
 				}
@@ -251,108 +271,41 @@ function showResult(searchUrl) {
 
 			newImg.attr('src', src);
 
-			$('#imgPane').append(newImg);
+			$imgPanel.append(newImg);
 		});
 	});
 
 
 	$('#saveBtn').on("click", function () {
+		$('#debug').hide();
 		abortAll = false;
 		updatePercent(0);
 		showMessage("Started download of original images");
 		var zip = new JSZip();
 		var count = {s:  0, e: 0, t: 0};
 		var name = username + "_" + where + "_allImages.zip";
-//		var urls = $(Object.keys(links));
+		var urls = $(Object.keys(links));
 
-		var urls = $(["http://i.ytimg.com/vi/Shvtq1ohZN8/hqdefault.jpg",
-									"http://i.ytimg.com/vi/XvG_356itPs/hqdefault.jpg",
-									"http://i.ytimg.com/vi/Ywr7Ntgo3Do/hqdefault.jpg",
-									"http://i.ytimg.com/vi/xOhSG0u2bFc/hqdefault.jpg",
-									"http://i.ytimg.com/vi/ZZE1ghFKzWg/hqdefault.jpg",
-									"http://i.ytimg.com/vi/2FbW_kVYcl0/hqdefault.jpg",
-									"http://i.ytimg.com/vi/IB4QoIzeWxY/hqdefault.jpg",
-									"http://i.ytimg.com/vi/m75VuSMXbkQ/hqdefault.jpg",
-									"http://i.ytimg.com/vi/oI9g0P4_Anc/hqdefault.jpg",
-									"http://i.ytimg.com/vi/cKyUHTF4vRc/hqdefault.jpg",
-									"http://i.ytimg.com/vi/bv6QXqB6diY/hqdefault.jpg",
-									"http://i.ytimg.com/vi/NQojmm-qDI8/hqdefault.jpg",
-									"http://i.ytimg.com/vi/pHfD3QYDUAI/hqdefault.jpg",
-									"http://i.ytimg.com/vi/QZBx3jP_v0E/hqdefault.jpg"]);
 		var startTime = null;
 		var bytes = 0;
 		var total = urls.length;
 		var filenames = {};
 		var failedUrls = [];
 
-//		var psize = 5;
-//
-//		var pool = urls.splice(0, psize);
-
-//		var processData = function(requests) {
-//			Promise.all(
-//				requests.map(function (url) {
-//					fetch(url, {
-//						method: "GET"
-//					})
-//					.then(function (response) {
-//						if(response.ok) {
-//							return response.blob();
-//						}
-//						else {
-//							return Promise.reject(response);
-//						}
-//					})
-//				})
-//			)
-//			.then(function (responses) {
-//				responses.every(function (result) {
-//					return result;
-//				});
-//			})
-//			.then(function (result) {
-//				if (result) {
-//					if (urls.length) {
-//						pool = urls.splice(0, psize);
-//						return true;
-//					}
-//				}
-//				return "complete"
-//			});
-//		};
-//
-//		var fn = function(next) {
-//			return next === true ? processData(pool).then(fn) : next;
-//		}
-//
-//		processData(pool)
-//		.then(fn)
-//		.then(function(complete) {
-//			console.log(complete)
-//		})
-//		.catch(function(err) {
-//			console.log(err)
-//		});
-
-
 		var fetchUrl = function(index, url) {
-			// Promise.map awaits for returned promises as well.
+
 			if(abortAll)
 				return;
-			// console.log(index + " : " + url);
+
 			url = url.replace(/\??w=\d+/, '');
 			var filename = url.substring(url.lastIndexOf('/') + 1);
 
-			var parser = document.createElement('a');
-			parser.href = url;
-
-				fetch(/*corsProxyUrl + */url, {method: 'GET', cache: 'no-store'})
+			fetch(url, {method: 'GET', cache: 'default'})
 			.then(function (response) {
 				if (response.ok) {
 					return response.blob();
 				}
 				else {
-					failedUrls.push(url);
 					return Promise.reject(response);
 				}
 			})
@@ -374,21 +327,23 @@ function showResult(searchUrl) {
 			}).then(function () {
 
 				if(urls.length > 0 && ! abortAll ) {
-					next = urls.splice(0,1);
+					var next = urls.splice(0,1);
 					fetchUrl(0, next[0]);
 				}
 				count['t']++;
-				percent = Math.round(count['t'] / total * 100);
-				currentTime = (new Date()).getTime() - startTime;
-				speed = (bytes / (currentTime / 1000) / 1024).toFixed(2);
+				var percent = Math.round(count['t'] / total * 100);
+				var currentTime = (new Date()).getTime() - startTime;
+				var speed = (bytes / (currentTime / 1000) / 1024).toFixed(2);
 				showMessage(
 					"Downloading file: " + count['t']
-					+ " [ " + count['s'] + " OK, " + count['e'] + " failed ] "
-					+ percent + " %  at " + speed + " kB/s"
+					+ " ( " + count['s'] + " OK, " + count['e'] + " failed )  - "
+					+ percent + "%  at " + speed + " kB/s"
 				);
 				updatePercent(percent);
 				if (count['t'] == total) {
-					$('#debug').text(JSON.stringify(failedUrls, null, "\t"));
+					if(failedUrls.length > 0) {
+						$('#debug').show().text(JSON.stringify(failedUrls, null, "\t"));
+					}
 					zip.generateAsync({type: 'blob'}, function updateCallback(metadata) {
 						var msg = "Compressing " + count['s'] + " files (" + metadata.percent.toFixed(2) + " %)";
 						if (metadata.currentFile) {
@@ -398,7 +353,6 @@ function showResult(searchUrl) {
 						updatePercent(metadata.percent | 0);
 					}).then(function (content) {
 						saveAs(content, name);
-						//							showMessage("Download finished");
 					});
 				}
 			});
@@ -415,10 +369,10 @@ function showResult(searchUrl) {
 }
 
 function extract_fields(posts, fields) {
-	pruned = [];
-	for (p in posts) {
+	var pruned = [];
+	for (var p in posts) {
 		var post = {};
-		for (f in fields) {
+		for (var f in fields) {
 			if (posts[p][fields[f]]) {
 				post[fields[f]] = posts[p][fields[f]];
 			}
@@ -429,7 +383,7 @@ function extract_fields(posts, fields) {
 }
 
 function getLinks(links, posts) {
-	for (p in posts) {
+	for (var p in posts) {
 		if (posts[p]['main_image_url']) {
 			links[posts[p]['main_image_url']] = {tags: posts[p]['tags']};
 		}
@@ -440,7 +394,7 @@ function getLinks(links, posts) {
 function setCookie(key, value, expires) {
 	var defValidity = 1000 * 3600 * 24 * 7;
 	var newDate = new Date();
-	if (expires && Number.isInteger(expires)) {
+	if (expires && expires === parseInt(expires)) {
 		newDate.setTime(newDate.getTime() + expires);
 	}
 	else if (expires && expires instanceof Date) {
@@ -457,23 +411,17 @@ function setCookie(key, value, expires) {
 }
 
 function getCookie(key) {
-	var keyValue = document.cookie.match('(^|;) ?' + key + '=([^;]*)(;|$)');
+	var re = '(^|;) ?' + key + '=([^;]*)(;|$)';
+	var keyValue = document.cookie.match(new RegExp(re));
 	return keyValue ? keyValue[2] : null;
 }
 
-/**
- * Reset the message.
- */
 function resetMessage() {
 	$("#result")
 		.removeClass()
 		.text("");
 }
 
-/**
- * show a successful message.
- * @param {String} text the text to show.
- */
 function showMessage(text) {
 	resetMessage();
 	$("#result")
@@ -481,10 +429,6 @@ function showMessage(text) {
 		.append(text);
 }
 
-/**
- * show an error message.
- * @param {String} text the text to show.
- */
 function showError(text) {
 	resetMessage();
 	$("#result")
@@ -492,10 +436,6 @@ function showError(text) {
 		.text(text);
 }
 
-/**
- * Update the progress bar.
- * @param {Integer} percent the current percent
- */
 function updatePercent(percent) {
 	$("#progress_bar").removeClass("hide")
 		.find(".progress-bar")
