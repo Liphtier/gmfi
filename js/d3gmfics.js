@@ -11,15 +11,8 @@ var api_path = {
 };
 var corsProxyUrl = 'https://cors-anywhere.herokuapp.com/'
 
-var parallel_pages = 20;
-var img_loaded = 0;
-var img_error = 0;
-var img_count = 0;
 var abortAll = false;
 var loginForm;
-
-// var abc = new AbortController();
-// var abs = controller.signal;
 
 $(function () {
 
@@ -224,8 +217,12 @@ function showResult(searchUrl) {
 		cc = Math.ceil(($('#imgPane').width() + gap) / (120 + gap) - 1);
 		$('#imgPane.masonry').css({columnCount: cc})
 		updatePercent(0);
-		img_count = Object.keys(links).length;
-		img_loaded = 0;
+
+
+		var img_loaded = 0;
+		var img_error = 0;
+		var img_count = Object.keys(links).length;
+
 		$(Object.keys(links)).each(function (index, link) {
 			var src = link.replace(/w=\d+/, 'w=120');
 
@@ -266,11 +263,27 @@ function showResult(searchUrl) {
 		var zip = new JSZip();
 		var count = {s:  0, e: 0, t: 0};
 		var name = username + "_" + where + "_allImages.zip";
-		var urls = $(Object.keys(links));
+//		var urls = $(Object.keys(links));
+
+		var urls = $(["http://i.ytimg.com/vi/Shvtq1ohZN8/hqdefault.jpg",
+									"http://i.ytimg.com/vi/XvG_356itPs/hqdefault.jpg",
+									"http://i.ytimg.com/vi/Ywr7Ntgo3Do/hqdefault.jpg",
+									"http://i.ytimg.com/vi/xOhSG0u2bFc/hqdefault.jpg",
+									"http://i.ytimg.com/vi/ZZE1ghFKzWg/hqdefault.jpg",
+									"http://i.ytimg.com/vi/2FbW_kVYcl0/hqdefault.jpg",
+									"http://i.ytimg.com/vi/IB4QoIzeWxY/hqdefault.jpg",
+									"http://i.ytimg.com/vi/m75VuSMXbkQ/hqdefault.jpg",
+									"http://i.ytimg.com/vi/oI9g0P4_Anc/hqdefault.jpg",
+									"http://i.ytimg.com/vi/cKyUHTF4vRc/hqdefault.jpg",
+									"http://i.ytimg.com/vi/bv6QXqB6diY/hqdefault.jpg",
+									"http://i.ytimg.com/vi/NQojmm-qDI8/hqdefault.jpg",
+									"http://i.ytimg.com/vi/pHfD3QYDUAI/hqdefault.jpg",
+									"http://i.ytimg.com/vi/QZBx3jP_v0E/hqdefault.jpg"]);
 		var startTime = null;
 		var bytes = 0;
 		var total = urls.length;
 		var filenames = {};
+		var failedUrls = [];
 
 //		var psize = 5;
 //
@@ -330,14 +343,16 @@ function showResult(searchUrl) {
 			url = url.replace(/\??w=\d+/, '');
 			var filename = url.substring(url.lastIndexOf('/') + 1);
 
+			var parser = document.createElement('a');
+			parser.href = url;
 
-
-			fetch(/*corsProxyUrl + */url, {method: 'GET', cache: 'force-cache'})
+				fetch(/*corsProxyUrl + */url, {method: 'GET', cache: 'no-store'})
 			.then(function (response) {
 				if (response.ok) {
 					return response.blob();
 				}
 				else {
+					failedUrls.push(url);
 					return Promise.reject(response);
 				}
 			})
@@ -353,17 +368,16 @@ function showResult(searchUrl) {
 				filenames[filename] = 1;
 				zip.file(filename, data, {binary: true});
 			}).catch(function (err) {
+				failedUrls.push(url);
 				count['e']++;
 				console.log(err)
 			}).then(function () {
 
 				if(urls.length > 0 && ! abortAll ) {
 					next = urls.splice(0,1);
-					// if(next) {
 					fetchUrl(0, next[0]);
 				}
 				count['t']++;
-				// delete pool[url];
 				percent = Math.round(count['t'] / total * 100);
 				currentTime = (new Date()).getTime() - startTime;
 				speed = (bytes / (currentTime / 1000) / 1024).toFixed(2);
@@ -374,6 +388,7 @@ function showResult(searchUrl) {
 				);
 				updatePercent(percent);
 				if (count['t'] == total) {
+					$('#debug').text(JSON.stringify(failedUrls, null, "\t"));
 					zip.generateAsync({type: 'blob'}, function updateCallback(metadata) {
 						var msg = "Compressing " + count['s'] + " files (" + metadata.percent.toFixed(2) + " %)";
 						if (metadata.currentFile) {
@@ -395,8 +410,6 @@ function showResult(searchUrl) {
 		var pool = urls.splice(0, psize);
 
 		$(pool).each(fetchUrl);
-
-
 
 	});
 }
@@ -461,9 +474,8 @@ function resetMessage() {
  * show a successful message.
  * @param {String} text the text to show.
  */
-function showMessage(text, mode) {
-	if(mode != "a")
-		resetMessage();
+function showMessage(text) {
+	resetMessage();
 	$("#result")
 		.addClass("alert alert-success")
 		.append(text);
@@ -492,4 +504,3 @@ function updatePercent(percent) {
 			width: percent + "%"
 		});
 }
-
