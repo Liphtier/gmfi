@@ -3,11 +3,12 @@ var sid = getCookie("sid");
 var login = getCookie("login");
 
 
-var d3host = "https://d3.ru";
+var d3host = "https://leprosorium.ru";
 var api_path = {
 	login: "/api/auth/login/",
 	posts: "/api/users/%s/posts/",
-	favourites: "/api/users/%s/favourites/posts/"
+	favourites: "/api/users/%s/favourites/posts/",
+	comments: "/api/users/%s/comments/"
 };
 
 
@@ -83,7 +84,7 @@ function logIn(loginForm) {
 			if (data['uid'] && data['sid']) {
 				uid = data['uid'];
 				sid = data['sid'];
-				login = data['user']['login'];
+				login = $('input[name="username"]', $controlForm).val();
 				setCookie('uid', uid);
 				setCookie('sid', sid);
 				setCookie('login', login);
@@ -120,7 +121,8 @@ function searchImages() {
 
 	var posts, tags = [];
 	var links = {};
-	var fields = ['main_image_url', 'tags'];
+	var fields = where == 'comments' ? ['body', 'id'] : ['main_image_url', 'tags'];
+	var postcomms = where == 'comments' ? 'comments' : 'posts';
 
 	fetch(searchUrl, {
 		method: 'GET',
@@ -141,8 +143,8 @@ function searchImages() {
 				localStorage.removeItem(searchUrl + '_links');
 				var item_count = pageData['item_count'];
 				var page_count = pageData['page_count'];
-				posts = extract_fields(pageData['posts'], fields);
-
+				posts = extract_fields(pageData[postcomms], fields);
+				// console.log(pageData[postcomms]);
 				if (item_count > 42) {
 					var pages_returned = 1;
 					for (var page_num = 2; page_num <= page_count; page_num++) {
@@ -159,7 +161,7 @@ function searchImages() {
 								})
 								.then(function (result) {
 									var post_index = (_page_num - 1) * 42;
-									var page_posts = extract_fields(result['posts'], fields);
+									var page_posts = extract_fields(result[postcomms], fields);
 									for (var pp in page_posts) {
 										posts[post_index] = page_posts[pp];
 										post_index++;
@@ -204,10 +206,12 @@ function searchImages() {
 		if (localStorage.getItem(searchUrl + '_links')) {
 			links = JSON.parse(localStorage.getItem(searchUrl + '_links'));
 		}
-		else {
+		if(! Object.keys(links).length) {
 			links = getLinks(links, posts);
 			localStorage.setItem(searchUrl + '_links', JSON.stringify(links));
 		}
+
+
 		showResult(searchUrl);
 	});
 }
@@ -363,10 +367,24 @@ function showResult(searchUrl) {
 
 		var pool = urls.splice(0, psize);
 
-		$(urls).each(fetchUrl);
+		$(pool).each(fetchUrl);
 
 	});
 }
+
+
+//var fixedPool = function(queue, promise, size) {
+//	pool = queue.splice(0, size);
+//	$(pool).each(function(i, arg) {
+//		promise(arg)
+//			.then(function() {
+//				if(queue.length > 0) {
+//					var next = queue.splice(0,1);
+//					promise(next[0]);
+//				}
+//			})
+//	});
+//}
 
 function extract_fields(posts, fields) {
 	var pruned = [];
@@ -383,9 +401,30 @@ function extract_fields(posts, fields) {
 }
 
 function getLinks(links, posts) {
+
+	var where = $('input[name="where"]:checked', $controlForm).val();
+
+				// console.log(posts);
 	for (var p in posts) {
-		if (posts[p]['main_image_url']) {
-			links[posts[p]['main_image_url']] = {tags: posts[p]['tags']};
+		if(where == 'comments') {
+			if (posts[p]['body']) {
+				// var body = $('<div>' + posts[p]['body'] + '</div>');
+				// var imgs = $('img', body);
+				var body = posts[p]['body'];
+				var imgs = body.match(/src="(.*?)"/);
+				if(imgs) {
+					for (i = 1; i < imgs.length; i++) {
+						var src = imgs[i];
+						// var src = img.attr('src');
+						links[src] = "";//{width: img.attr('width'), height: img.attr('height')};
+					}
+				}
+			}
+		}
+		else {
+			if (posts[p]['main_image_url']) {
+				links[posts[p]['main_image_url']] = {tags: posts[p]['tags']};
+			}
 		}
 	}
 	return links;
