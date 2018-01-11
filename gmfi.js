@@ -137,7 +137,7 @@ function searchImages() {
 
 	var posts;
 	var links = {};
-	var fields = ['main_image_url', 'body', 'id', 'rating', 'domain.idna_url', 'domain.url', 'post.id', '_links[0].href'];
+	var fields = ['main_image_url', 'body', 'id', 'rating', 'domain.idna_url', 'domain.url', 'post.id'];
 	var postcomms = where === 'comments' ? 'comments' : 'posts';
 
 	fetch(searchUrl, {
@@ -420,8 +420,16 @@ function getLinks(links, posts) {
 						var width = m ? parseInt(m[1]) : null;
 						m = img.match(/height="(.*?)"/);
 						var height = m ? parseInt(m[1]) : null;
+						var url;
+						var domUrlkey = api_host.includes('lepro') ? 'domain.idna_url' : 'domain.url';
+						if(where === "comments") {
+							url = posts[p][domUrlkey] + "/comments/" + posts[p]['post.id'] + "/#" + posts[p]['id'];
+						}
+						else {
+							url = posts[p][domUrlkey] + "/comments/" + posts[p]['id'];
+						}
 						links[src] = { //TODO multiple comments per same image
-							url: where === 'comments' ? posts[p]['domain.idna_url'] + "/comments/" + posts[p]['post.id'] + "/#" + posts[p]['id'] : posts[p]['_links[0].href'],
+							url: url,
 							rating: posts[p]['rating'],
 							width: width,
 							height: height
@@ -432,7 +440,7 @@ function getLinks(links, posts) {
 		}
 		else if (posts[p]['main_image_url']) {
 			links[posts[p]['main_image_url']] = {
-				url: where === 'comments' ? posts[p]['domain.idna_url'] + "/comments/" + posts[p]['post.id'] + "/#" + posts[p]['id'] : posts[p]['_links[0].href'],
+				url: posts[p]['domain.url'] + "/comments/" + posts[p]['id'],
 				rating: posts[p]['rating']
 			};
 		}
