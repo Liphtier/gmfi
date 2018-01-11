@@ -1,7 +1,7 @@
 var uid = getCookie("uid");
 var sid = getCookie("sid");
 var login = getCookie("login");
-var api_host = getCookie("api_host")
+var api_host = getCookie("api_host");
 
 
 if (! api_host)
@@ -55,6 +55,7 @@ $(function () {
 		showLogin();
 	});
 	$(document).on("click", '#logoutLink', logOut);
+	$(document).on("click", '#clearStorage', clearStorage);
 	$(document).on("click", '#searchBtn', searchImages);
 	$(document).on("click", '#abortBtn', function () {
 		abortAll = true;
@@ -74,12 +75,14 @@ function showContent() {
 	$('#upanel').html("<dl id='userData'><dt>Logged in as: </dt>" +
 		"<dd>" + login + "</dd>,<dt>ID:</dt><dd>" +
 		uid + '</dd></dl>' +
-		'<span id="logoutLink">Logout</span>' /*+
-		'<span class="helpBtn glyphicon glyphicon-question-sign"></span>'*/
+		'<div class="topLinks">' +
+		'<span id="clearStorage">Clear Storage</span>' +
+			'<span id="logoutLink">Logout</span>' +
+		'</div>'
 		);
 	$controlForm = $('#controlform');
 	$infoPanel = $('.ipanel').html('');
-	$imgPanel = $('#imgPane .masonry').html('');
+	$imgPanel = $('#imgPane').find('.masonry').html('');
 	$('input[name="username"]', $controlForm).val(login);
 	$('.content_wrapper').show();
 }
@@ -117,6 +120,10 @@ function logOut() {
 
 }
 
+function clearStorage() {
+	localStorage.clear();
+}
+
 function searchImages() {
 	abortAll = false;
 	$infoPanel.html('');
@@ -128,10 +135,10 @@ function searchImages() {
 	var where = $('input[name="where"]:checked', $controlForm).val();
 	var searchUrl = api_host + api_path[where].replace('%s', username);
 
-	var posts, tags = [];
+	var posts;
 	var links = {};
-	var fields = ['main_image_url', 'tags', 'body', 'id', 'rating', 'domain.idna_url', 'domain.url', 'post.id', '_links[0].href'];
-	var postcomms = where == 'comments' ? 'comments' : 'posts';
+	var fields = ['main_image_url', 'body', 'id', 'rating', 'domain.idna_url', 'domain.url', 'post.id', '_links[0].href'];
+	var postcomms = where === 'comments' ? 'comments' : 'posts';
 
 	fetch(searchUrl, {
 		method: 'GET',
@@ -147,7 +154,7 @@ function searchImages() {
 	}).then(function (pageData) {
 		if (pageData['item_count']) {
 			var cachedPage = JSON.parse(localStorage.getItem(searchUrl + '_page'));
-			if (!cachedPage || cachedPage['item_count'] != pageData['item_count'] || !localStorage.getItem(searchUrl + '_links')) {
+			if (!cachedPage || cachedPage['item_count'] !== pageData['item_count'] || !localStorage.getItem(searchUrl + '_links')) {
 				localStorage.setItem(searchUrl + '_page', JSON.stringify(pageData));
 				localStorage.removeItem(searchUrl + '_links');
 				var item_count = pageData['item_count'];
@@ -171,6 +178,7 @@ function searchImages() {
 									var post_index = (_page_num - 1) * 42;
 									var page_posts = extract_fields(result[postcomms], fields);
 									for (var pp in page_posts) {
+										// noinspection JSUnfilteredForInLoop
 										posts[post_index] = page_posts[pp];
 										post_index++;
 									}
@@ -185,7 +193,7 @@ function searchImages() {
 									showMessage(msg);
 									updatePercent(percent);
 
-									if (pages_returned == page_count) {
+									if (pages_returned === page_count) {
 										$(document).trigger("posts-ready");
 									}
 								});
@@ -248,7 +256,6 @@ function showResult(searchUrl) {
 
 
 		var urls = $(Object.keys(links));
-//		var pool = urls.splice(0,30);
 		var img_count = urls.length;
 		var img_loaded = 0;
 		var img_error = 0;
@@ -262,9 +269,6 @@ function showResult(searchUrl) {
 
 			newImg.one("error", function () {
 				img_error++;
-				// setTimeout(function () {
-				// 	$(this).src += '?' + new Date;
-				// }, 500);
 				previewProgress(img_loaded, img_error, img_count);
 			}).one("load", function () {
 				img_loaded++;
@@ -284,10 +288,10 @@ function showResult(searchUrl) {
 		var msg = "Getting Images : " + (loaded + failed) + "(" + percent + " %)";
 		showMessage(msg);
 		updatePercent(percent);
-		if (loaded + failed == total) {
+		if (loaded + failed === total) {
 			showMessage("Finished getting images. " + loaded + " loaded, " + failed + ' failed');
 		}
-	}
+	};
 
 	$('#saveBtn').on("click", function () {
 		$('#debug').hide();
@@ -325,10 +329,11 @@ function showResult(searchUrl) {
 			.then(function (data) {
 				if (!startTime)
 					startTime = (new Date()).getTime();
+				// noinspection Annotator
 				bytes += data.size;
 				count['s']++;
 				if (filenames[filename]) {
-					console.log(filename + ' => ' + count['t'] + "_" + filename);
+					// console.log(filename + ' => ' + count['t'] + "_" + filename);
 					filename = count['t'] + "_" + filename;
 				}
 				filenames[filename] = 1;
@@ -353,7 +358,7 @@ function showResult(searchUrl) {
 					+ percent + "%  at " + speed + " kB/s"
 				);
 				updatePercent(percent);
-				if (count['t'] == total) {
+				if (count['t'] === total) {
 					if(failedUrls.length > 0) {
 						$('#debug').show().text(JSON.stringify(failedUrls, null, "\t"));
 					}
@@ -386,6 +391,7 @@ function extract_fields(posts, fields) {
 	for (var p in posts) {
 		var post = {};
 		for (var f in fields) {
+			// noinspection JSUnfilteredForInLoop
 			var val = Object.byString(posts[p], fields[f]);
 			if (val !== undefined) {
 				post[fields[f]] = val;
@@ -405,7 +411,7 @@ function getLinks(links, posts) {
 			var body = posts[p]['body'];
 			var imgs = body.match(/(<img.*?>)/);
 			if(imgs) {
-				for (i = 1; i < imgs.length; i++) {
+				for (var i = 1; i < imgs.length; i++) {
 					var img = imgs[i];
 					var m = img.match(/src="(.*?)"/);
 					var src = m ? m[1]: null;
@@ -415,7 +421,7 @@ function getLinks(links, posts) {
 						m = img.match(/height="(.*?)"/);
 						var height = m ? parseInt(m[1]) : null;
 						links[src] = { //TODO multiple comments per same image
-							url: where == 'comments' ? posts[p]['domain.idna_url'] + "/comments/" + posts[p]['post.id'] + "/#" + posts[p]['id'] : posts[p]['_links[0].href'],
+							url: where === 'comments' ? posts[p]['domain.idna_url'] + "/comments/" + posts[p]['post.id'] + "/#" + posts[p]['id'] : posts[p]['_links[0].href'],
 							rating: posts[p]['rating'],
 							width: width,
 							height: height
@@ -426,8 +432,8 @@ function getLinks(links, posts) {
 		}
 		else if (posts[p]['main_image_url']) {
 			links[posts[p]['main_image_url']] = {
-				url: where == 'comments' ? posts[p]['domain.idna_url'] + "/comments/" + posts[p]['post.id'] + "/#" + posts[p]['id'] : posts[p]['_links[0].href'],
-				rating: posts[p]['rating'],
+				url: where === 'comments' ? posts[p]['domain.idna_url'] + "/comments/" + posts[p]['post.id'] + "/#" + posts[p]['id'] : posts[p]['_links[0].href'],
+				rating: posts[p]['rating']
 			};
 		}
 	}
@@ -501,4 +507,4 @@ Object.byString = function(o, s) {
 		}
 	}
 	return o;
-}
+};
