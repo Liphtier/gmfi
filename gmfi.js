@@ -48,8 +48,8 @@ $(function () {
 		showContent();
 
 	});
-	$(document).on('loginError', function (e, a) {
-		alert(a);
+	$(document).on('loginError', function (e, msg) {
+		alert(msg);
 	});
 	$(document).on('logOut', function () {
 		showLogin();
@@ -453,16 +453,35 @@ function setCookie(key, value, expires) {
 		newDate.setTime(newDate.getTime() + defValidity);
 	}
 	if (newDate instanceof Date) {
-		document.cookie = key + '=' + value + ';expires=' + newDate.toUTCString();
+		if(window.location.protocol === 'file:') {
+			localStorage.setItem(key, JSON.stringify({value: value, expires: newDate.toUTCString()}));
+		}
+		else {
+			document.cookie = key + '=' + value + ';expires=' + newDate.toUTCString();
+		}
 		return;
 	}
 	console.err("setCookie failed - expiration value is invalid: " + newDate);
 }
 
 function getCookie(key) {
-	var re = '(^|;) ?' + key + '=([^;]*)(;|$)';
-	var keyValue = document.cookie.match(new RegExp(re));
-	return keyValue ? keyValue[2] : null;
+
+	if(window.location.protocol === 'file:') {
+		var cookie = JSON.parse(localStorage.getItem(key));
+		if(cookie) {
+			if(Date.now() < Date.parse(cookie.expires)) {
+				return cookie.value;
+			}
+			else {
+				localStorage.removeItem(key);
+			}
+		}
+	}
+	else {
+		var re = '(^|;) ?' + key + '=([^;]*)(;|$)';
+		var keyValue = document.cookie.match(new RegExp(re));
+		return keyValue ? keyValue[2] : null;
+	}
 }
 
 function resetMessage() {
