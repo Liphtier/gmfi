@@ -12,8 +12,19 @@ label { margin: 0 5px; padding: 0 5px; text-transform: capitalize; }
 .tags { display: flex; flex-wrap: wrap; }
 .tag { border: 1px lightblue solid; border-radius: 4px; margin: 1px; padding: 1px 2px; }
 .info { float: left }
-.masonry { column-count: 10; column-gap: 1em; }
-.masonry img { display: inline-block; margin: 0 0 1em; width: 100%; }
+#imgPane {visibility: hidden}
+.masonry { column-count: 10; column-gap: 1em; visibility: visible}
+.masonry .img_link {display: inline-block; position: relative;/* height: 0;	overflow: hidden;*/}
+.masonry img { display: inline-block;/* position: absolute;*/ margin: 0 0 1em; width: 100%; }
+.masonry .rating {position: absolute;
+	display: inline-block;
+	padding: 2px;
+	border-radius: 0 0 0.8em 0;
+	background-color: orange;
+	opacity: 0.8;
+	color: darkblue;
+	min-width: 1.5em;
+	text-align: center;}
 #logoutLink, button, .helpBtn { float: right; margin: 0 3px }
 #userData { display: inline-flex; }
 #userData dt { margin: 0 1em 0 2em; }

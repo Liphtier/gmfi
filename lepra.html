@@ -14,8 +14,8 @@
 		<div class="login_wrapper">
 			<div class="login_container">
 				<form method="POST" class="loginform" id="loginform">
-					<input name="username" value="" placeholder="Username" required/><br class="clear"/>
-					<input name="password" type="password" value="" placeholder="Password" required="required"/>
+					<input name="username" value="" placeholder="Username" required autocomplete="username"/><br class="clear"/>
+					<input name="password" type="password" value="" placeholder="Password" required="required" autocomplete="current-password"/>
 					<button type="submit" name="login" value="1">Login</button>
 				</form>
 			</div>
@@ -28,8 +28,8 @@
 				<form method="GET" class="controlform" id="controlform">
 					<input name="username" value="" placeholder="%username%" title="которому это по душе" required="required" autocomplete="on"/>
 					<label>Posts <input name="where" value="posts" type="radio"></label>
-					<label>Favourites <input name="where" value="favourites" type="radio"></label>
-					<label>Comments <input name="where" value="comments" type="radio" checked="checked"></label>
+					<label>Favourites <input name="where" value="favourites" type="radio" checked="checked"></label>
+					<label>Comments <input name="where" value="comments" type="radio"></label>
 					<button type="button" id="searchBtn" name="search">Search</button>
 					<button type="button" id="abortBtn" name="abort">Stop All</button>
 				</form>
@@ -42,7 +42,9 @@
 			</div>
 			<p class="hide" id="result"></p>
 			<pre class="hide" id="debug"></pre>
-			<div id="imgPane" class="masonry"></div>
+			<div id="imgPane">
+				<div class="masonry"></div>
+			</div>
 		</div>
 	</body>
 </html>

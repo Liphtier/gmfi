@@ -72,7 +72,7 @@ function showContent() {
 		);
 	$controlForm = $('#controlform');
 	$infoPanel = $('.ipanel').html('');
-	$imgPanel = $('#imgPane').html('');
+	$imgPanel = $('#imgPane .masonry').html('');
 	$('input[name="username"]', $controlForm).val(login);
 	$('.content_wrapper').show();
 }
@@ -121,7 +121,7 @@ function searchImages() {
 
 	var posts, tags = [];
 	var links = {};
-	var fields = where == 'comments' ? ['body', 'id'] : ['main_image_url', 'tags'];
+	var fields = ['body', 'id', 'rating', 'domain.idna_url', 'post.id', '_links[0].href'];
 	var postcomms = where == 'comments' ? 'comments' : 'posts';
 
 	fetch(searchUrl, {
@@ -208,7 +208,7 @@ function searchImages() {
 		}
 		if(! Object.keys(links).length) {
 			links = getLinks(links, posts);
-			localStorage.setItem(searchUrl + '_links', JSON.stringify(links));
+			if(Object.keys(links).length) localStorage.setItem(searchUrl + '_links', JSON.stringify(links));
 		}
 
 
@@ -248,37 +248,45 @@ function showResult(searchUrl) {
 		var img_error = 0;
 
 		urls.each(function (index, link) {
+			// var style = (links[link]['width'] && links[link]['height']) ?  'style="padding-bottom: '
+			// 	+ (links[link]['height'] / links[link]['width'] * 100) + '%"' : "";
+			var commentLink = $('<a class="img_link" href="' + links[link]['url'] +'" style="display: none"><span class="rating">'+ links[link]['rating'] +'</span></a>');
+
 			var src = link.replace(/w=\d+/, 'w=120');
 
-			var newImg = $('<img class="item" alt="' + src + '" />');
+			var newImg = $('<img class="item" alt="' + src + '" src="' + src + '" />');
+
+			// newImg.attr('src', src);
 
 			newImg.one("error", function () {
 				img_error++;
-				console.log("Failed loading image:");
-				console.log(arguments);
-				setTimeout(function () {
-					$(this).src += '?' + new Date;
-				}, 500);
-			});
-			newImg.one("load", function () {
+				// setTimeout(function () {
+				// 	$(this).src += '?' + new Date;
+				// }, 500);
+				previewProgress(img_loaded, img_error, img_count);
+			}).one("load", function () {
 				img_loaded++;
-				var percent = Math.round(img_loaded / img_count * 100);
-				var msg = "Getting Images : " + img_loaded + "(" + percent + " %)";
-				showMessage(msg);
-				updatePercent(percent);
-				if (img_loaded == img_count) {
-					showMessage("Finished getting images");
-				}
+				commentLink.show();
+				previewProgress(img_loaded, img_error, img_count);
 			}).each(function () {
 				if (this.complete) $(this).load();
 			});
 
-			newImg.attr('src', src);
 
+			newImg = commentLink.append(newImg);
 			$imgPanel.append(newImg);
 		});
 	});
 
+	var previewProgress = function (loaded, failed, total) {
+		var percent = Math.round((loaded + failed) / total * 100);
+		var msg = "Getting Images : " + (loaded + failed) + "(" + percent + " %)";
+		showMessage(msg);
+		updatePercent(percent);
+		if (loaded + failed == total) {
+			showMessage("Finished getting images. " + loaded + " loaded, " + failed + ' failed');
+		}
+	}
 
 	$('#saveBtn').on("click", function () {
 		$('#debug').hide();
@@ -391,8 +399,11 @@ function extract_fields(posts, fields) {
 	for (var p in posts) {
 		var post = {};
 		for (var f in fields) {
-			if (posts[p][fields[f]]) {
-				post[fields[f]] = posts[p][fields[f]];
+			var val = Object.byString(posts[p], fields[f]);
+			if (val !== undefined) {
+				post[fields[f]] = val;
+				// console.log()
+					// posts[p][fields[f]];
 			}
 		}
 		pruned.push(post);
@@ -404,26 +415,28 @@ function getLinks(links, posts) {
 
 	var where = $('input[name="where"]:checked', $controlForm).val();
 
-				// console.log(posts);
 	for (var p in posts) {
-		if(where == 'comments') {
-			if (posts[p]['body']) {
-				// var body = $('<div>' + posts[p]['body'] + '</div>');
-				// var imgs = $('img', body);
-				var body = posts[p]['body'];
-				var imgs = body.match(/src="(.*?)"/);
-				if(imgs) {
-					for (i = 1; i < imgs.length; i++) {
-						var src = imgs[i];
-						// var src = img.attr('src');
-						links[src] = "";//{width: img.attr('width'), height: img.attr('height')};
+		if (posts[p]['body']) {
+			var body = posts[p]['body'];
+			var imgs = body.match(/(<img.*?>)/);
+			if(imgs) {
+				for (i = 1; i < imgs.length; i++) {
+					var img = imgs[i];
+					var m = img.match(/src="(.*?)"/);
+					var src = m ? m[1]: null;
+					if(src) {
+						m = img.match(/width="(.*?)"/);
+						var width = m ? parseInt(m[1]) : null;
+						m = img.match(/height="(.*?)"/);
+						var height = m ? parseInt(m[1]) : null;
+						links[src] = { //TODO multiple comments per same image
+							url: where == 'comments' ? posts[p]['domain.idna_url'] + "/comments/" + posts[p]['post.id'] + "/#" + posts[p]['id'] : posts[p]['_links[0].href'],
+							rating: posts[p]['rating'],
+							width: width,
+							height: height
+						};
 					}
 				}
-			}
-		}
-		else {
-			if (posts[p]['main_image_url']) {
-				links[posts[p]['main_image_url']] = {tags: posts[p]['tags']};
 			}
 		}
 	}
@@ -482,4 +495,19 @@ function updatePercent(percent) {
 		.css({
 			width: percent + "%"
 		});
+}
+
+Object.byString = function(o, s) {
+	s = s.replace(/\[(\w+)\]/g, '.$1'); // convert indexes to properties
+	s = s.replace(/^\./, '');           // strip a leading dot
+	var a = s.split('.');
+	for (var i = 0, n = a.length; i < n; ++i) {
+		var k = a[i];
+		if (k in o) {
+			o = o[k];
+		} else {
+			return;
+		}
+	}
+	return o;
 }
